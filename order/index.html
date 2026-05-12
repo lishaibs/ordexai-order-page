@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>הזמנה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --green:#25D366;--green-dark:#128C7E;--green-pale:#f0faf4;
+  --text:#1a1a1a;--text2:#555;--text3:#999;
+  --border:#e8e8e8;--bg:#f5f5f5;--white:#fff;
+  --radius:12px;--shadow:0 2px 8px rgba(0,0,0,0.07);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:110px}
+
+/* Header */
+.hdr{background:var(--white);border-bottom:1px solid var(--border);padding:12px 16px;
+  display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.hdr-logo{width:36px;height:36px;background:var(--green);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hdr-logo svg{width:20px;height:20px;fill:white}
+.hdr-info{flex:1;min-width:0}
+.hdr-org{font-size:15px;font-weight:700}
+.hdr-sub{font-size:11px;color:var(--text3);margin-top:1px}
+.cart-badge{background:var(--green);color:white;font-size:11px;font-weight:700;
+  min-width:22px;height:22px;border-radius:11px;display:flex;align-items:center;
+  justify-content:center;padding:0 5px;opacity:0;transform:scale(0.6);
+  transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1)}
+.cart-badge.on{opacity:1;transform:scale(1)}
+
+/* Market tabs */
+.mkt-tabs{background:var(--white);display:flex;border-bottom:1px solid var(--border);overflow-x:auto}
+.mkt-tabs::-webkit-scrollbar{display:none}
+.mkt-tab{flex:1;min-width:72px;padding:11px 8px;text-align:center;font-size:13px;font-weight:500;
+  color:var(--text3);cursor:pointer;border-bottom:3px solid transparent;
+  transition:all 0.15s;white-space:nowrap;user-select:none;font-family:'Heebo',sans-serif}
+.mkt-tab.on{color:var(--green-dark);border-bottom-color:var(--green);font-weight:700}
+
+/* Cat bar */
+.cat-bar{background:var(--white);padding:9px 12px;display:flex;gap:7px;overflow-x:auto;
+  border-bottom:1px solid var(--border);position:sticky;top:61px;z-index:90}
+.cat-bar::-webkit-scrollbar{display:none}
+.cat-pill{padding:5px 13px;border-radius:20px;border:1.5px solid var(--border);
+  font-size:12px;font-family:'Heebo',sans-serif;white-space:nowrap;cursor:pointer;
+  color:var(--text2);background:var(--white);flex-shrink:0;transition:all 0.15s;user-select:none}
+.cat-pill.on{background:var(--green);border-color:var(--green);color:white;font-weight:500}
+
+/* Products */
+.sec-title{padding:14px 16px 5px;font-size:10px;font-weight:700;color:var(--text3);
+  letter-spacing:0.6px;text-transform:uppercase}
+.pcard{background:var(--white);margin:0 12px 8px;border-radius:var(--radius);
+  display:flex;align-items:center;gap:12px;padding:11px 12px;box-shadow:var(--shadow);
+  animation:fadein 0.18s ease both}
+@keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.pimg{width:58px;height:58px;border-radius:8px;background:var(--green-pale);
+  border:1px solid var(--border);flex-shrink:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;font-size:26px}
+.pimg img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.pinfo{flex:1;min-width:0}
+.pname{font-size:13px;font-weight:500;line-height:1.35}
+.psku{font-size:10px;color:var(--text3);margin-top:2px;font-family:monospace}
+.qty{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.qbtn{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border);
+  background:var(--white);font-size:17px;line-height:1;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;color:var(--text2);transition:all 0.12s;
+  user-select:none;-webkit-user-select:none;font-family:'Heebo',sans-serif}
+.qbtn:active{transform:scale(0.88)}
+.qbtn.plus.on{background:var(--green);border-color:var(--green);color:white}
+.qbtn.minus{opacity:0.25}.qbtn.minus.on{opacity:1}
+.qnum{font-size:15px;font-weight:700;min-width:20px;text-align:center}
+.qnum.z{color:var(--text3);font-weight:400}
+
+/* States */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:55vh;gap:14px;color:var(--text3);font-size:13px}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--green);
+  border-radius:50%;animation:spin 0.75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:44px 24px;color:var(--text3);font-size:13px}
+.empty .ei{font-size:36px;margin-bottom:10px;opacity:0.35}
+.err{text-align:center;padding:44px 24px;color:#e53935;font-size:13px}
+.err .ei{font-size:34px;margin-bottom:10px}
+
+/* Footer */
+.footer{position:fixed;bottom:0;left:0;right:0;background:var(--white);
+  border-top:1px solid var(--border);padding:9px 14px 14px;z-index:200}
+.fsum{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;font-size:12px}
+.fcount{color:var(--text2)}.fcount strong{color:var(--text)}
+.clrbtn{background:none;border:none;font-size:12px;color:#e53935;cursor:pointer;
+  font-family:'Heebo',sans-serif;padding:0;opacity:0;transition:opacity 0.2s}
+.clrbtn.on{opacity:1}
+.sendbtn{width:100%;padding:13px;border-radius:var(--radius);background:var(--green);border:none;
+  color:white;font-size:15px;font-weight:700;font-family:'Heebo',sans-serif;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:9px;transition:all 0.15s}
+.sendbtn:active{transform:scale(0.98);opacity:0.9}
+.sendbtn:disabled{background:var(--border);color:var(--text3);cursor:default}
+.sendbtn svg{width:19px;height:19px;fill:white;flex-shrink:0}
+.sendbtn:disabled svg{fill:var(--text3)}
+
+/* Toast */
+.toast{position:fixed;bottom:118px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:rgba(0,0,0,0.72);color:white;padding:7px 16px;border-radius:18px;
+  font-size:12px;font-family:'Heebo',sans-serif;opacity:0;transition:all 0.22s;
+  pointer-events:none;white-space:nowrap;z-index:300}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-logo">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z M12 0C5.373 0 0 5.373 0 12c0 2.12.554 4.11 1.523 5.835L0 24l6.335-1.654C8.09 23.394 10.01 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+  </div>
+  <div class="hdr-info">
+    <div class="hdr-org" id="org-name">טוען...</div>
+    <div class="hdr-sub">הזמנה חדשה</div>
+  </div>
+  <div class="cart-badge" id="badge">0</div>
+</div>
+
+<div id="mkt-tabs" class="mkt-tabs"></div>
+<div id="cat-bar" class="cat-bar"></div>
+<div id="plist"></div>
+
+<div class="footer">
+  <div class="fsum">
+    <span class="fcount" id="fcount">בחר מוצרים להזמנה</span>
+    <button class="clrbtn" id="clrbtn" onclick="clearAll()">נקה הכל</button>
+  </div>
+  <button class="sendbtn" id="sendbtn" onclick="sendOrder()" disabled>
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z M12 0C5.373 0 0 5.373 0 12c0 2.12.554 4.11 1.523 5.835L0 24l6.335-1.654C8.09 23.394 10.01 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+    שלח הזמנה ב-WhatsApp
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Category emoji by code — for placeholder when no image_url
+const CAT_EMOJI = {
+  MOZZARELLA:'🧀', WHITE_BRINE:'🧀', CREAM_CHEESE:'🫙', HARD_CHEESE:'🧀',
+  GOAT_SHEEP:'🐐', RICOTTA:'🥛', HALLOUMI:'🍳', CREAM:'🥛', YOGURT:'🥣',
+  MILK:'🥛', BUTTER:'🧈', DESSERTS:'🍮', PASTA:'🍝', SPREADS:'🫙', OTHER:'🛒'
+};
+
+// ── Updated API URL ────────────────────────────────────────────────────────
+const API = "https://9q6xovizff.execute-api.eu-west-1.amazonaws.com";
+
+let catalog=null, selMkt=null, selCat=null, qty={}, phone=null, toastTmr;
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function init() {
+  showLoading();
+  const token = new URLSearchParams(window.location.search).get('t');
+  if (!token) { showError('קישור לא תקין — חסר טוקן'); return; }
+
+  try {
+    const r = await fetch(`${API}/catalog?token=${encodeURIComponent(token)}`);
+    if (r.status === 401) { showError('הקישור פג תוקף — בקש קישור חדש'); return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    catalog = await r.json();
+  } catch(e) {
+    showError('שגיאה בטעינת הקטלוג. בדוק חיבור ונסה שוב.');
+    console.error(e); return;
+  }
+
+  phone = catalog.distributorPhone;
+  document.getElementById('org-name').textContent = catalog.org.name;
+  document.title = 'הזמנה — ' + catalog.org.name;
+  renderMktTabs();
+}
+
+// ── Market tabs ───────────────────────────────────────────────────────────
+function renderMktTabs() {
+  const c = document.getElementById('mkt-tabs');
+  c.innerHTML = '';
+  catalog.marketTypes.forEach((mt, i) => {
+    const d = document.createElement('div');
+    d.className = 'mkt-tab' + (i === 0 ? ' on' : '');
+    d.textContent = mt.name;
+    d.dataset.id = mt.id;
+    d.onclick = () => pickMkt(mt);
+    c.appendChild(d);
+  });
+  pickMkt(catalog.marketTypes[0]);
+}
+
+function pickMkt(mt) {
+  selMkt = mt;
+  document.querySelectorAll('.mkt-tab').forEach(t => t.classList.toggle('on', t.dataset.id === mt.id));
+  const skusHere = catalog.skus.filter(s => s.market_type_id === mt.id);
+  const catIds   = [...new Set(skusHere.map(s => s.category_id))];
+  // Preserve category order from API
+  const cats     = catalog.categories.filter(c => catIds.includes(c.id));
+  renderCatBar(cats);
+  cats.length
+    ? pickCat(cats[0])
+    : (document.getElementById('plist').innerHTML = '<div class="empty"><div class="ei">📦</div>אין מוצרים</div>');
+}
+
+// ── Category bar ──────────────────────────────────────────────────────────
+function renderCatBar(cats) {
+  const b = document.getElementById('cat-bar');
+  b.innerHTML = '';
+  cats.forEach((cat, i) => {
+    const p = document.createElement('div');
+    p.className = 'cat-pill' + (i === 0 ? ' on' : '');
+    // Use name from API directly — no translation map needed
+    p.textContent = cat.name || cat.code;
+    p.dataset.id = cat.id;
+    p.onclick = () => pickCat(cat);
+    b.appendChild(p);
+  });
+}
+
+function pickCat(cat) {
+  selCat = cat;
+  document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('on', p.dataset.id === cat.id));
+  const ap = document.querySelector('.cat-pill.on');
+  if (ap) ap.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+  renderProducts();
+}
+
+// ── Products ──────────────────────────────────────────────────────────────
+function renderProducts() {
+  const list = document.getElementById('plist');
+  const skus = catalog.skus.filter(s =>
+    s.market_type_id === selMkt.id && s.category_id === selCat.id
+  );
+
+  if (!skus.length) {
+    list.innerHTML = '<div class="empty"><div class="ei">🔍</div>אין מוצרים בקטגוריה זו</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  const sec = document.createElement('div');
+  const emoji = CAT_EMOJI[selCat.code] || '🛒';
+
+  const title = document.createElement('div');
+  title.className = 'sec-title';
+  title.textContent = (selCat.name || selCat.code) + ' · ' + selMkt.name;
+  sec.appendChild(title);
+
+  skus.forEach((sku, idx) => {
+    const q = qty[sku.sku_code] || 0;
+    const card = document.createElement('div');
+    card.className = 'pcard';
+    card.style.animationDelay = (idx * 25) + 'ms';
+
+    // Safe name for inline onclick (escape single quotes)
+    const safeName = sku.name.replace(/'/g, "\\'");
+
+    card.innerHTML = `
+      <div class="pimg">
+        ${sku.image_url
+          ? `<img src="${sku.image_url}" alt="${sku.name}" loading="lazy"
+               onerror="this.parentElement.innerHTML='${emoji}'">`
+          : emoji}
+      </div>
+      <div class="pinfo">
+        <div class="pname">${sku.name}</div>
+        <div class="psku">${sku.sku_code}</div>
+      </div>
+      <div class="qty">
+        <button class="qbtn minus${q > 0 ? ' on' : ''}"
+          onclick="chg('${sku.sku_code}','${safeName}',-1)">−</button>
+        <span class="qnum${q === 0 ? ' z' : ''}" id="q${sku.sku_code}">${q}</span>
+        <button class="qbtn plus${q > 0 ? ' on' : ''}"
+          onclick="chg('${sku.sku_code}','${safeName}',1)">+</button>
+      </div>`;
+    sec.appendChild(card);
+  });
+
+  list.appendChild(sec);
+}
+
+// ── Qty ───────────────────────────────────────────────────────────────────
+function chg(code, name, delta) {
+  const cur = qty[code] || 0;
+  const next = Math.max(0, cur + delta);
+  if (next === 0) delete qty[code]; else qty[code] = next;
+
+  const el = document.getElementById('q' + code);
+  if (el) {
+    el.textContent = next;
+    el.className = 'qnum' + (next === 0 ? ' z' : '');
+    const ctrl = el.parentElement;
+    ctrl.querySelector('.minus').className = 'qbtn minus' + (next > 0 ? ' on' : '');
+    ctrl.querySelector('.plus').className  = 'qbtn plus'  + (next > 0 ? ' on' : '');
+  }
+  updateFooter();
+  if (delta > 0 && next > 0) toast(name + ' × ' + next);
+}
+
+function clearAll() { qty = {}; renderProducts(); updateFooter(); }
+
+// ── Footer ────────────────────────────────────────────────────────────────
+function updateFooter() {
+  const items = Object.keys(qty).length;
+  const units = Object.values(qty).reduce((a, b) => a + b, 0);
+  const b = document.getElementById('badge');
+  b.textContent = items;
+  b.classList.toggle('on', items > 0);
+  document.getElementById('fcount').innerHTML = items === 0
+    ? 'בחר מוצרים להזמנה'
+    : `<strong>${items}</strong> פריטים · <strong>${units}</strong> יחידות`;
+  document.getElementById('clrbtn').classList.toggle('on', items > 0);
+  document.getElementById('sendbtn').disabled = items === 0;
+}
+
+// ── Send ──────────────────────────────────────────────────────────────────
+function sendOrder() {
+  if (!Object.keys(qty).length) return;
+  const map = {};
+  catalog.skus.forEach(s => map[s.sku_code] = s.name);
+  const lines = Object.entries(qty).map(([c, q]) => `${map[c]} ${q}`).join('\n');
+  const text  = 'הזמנה:\n' + lines;
+  const p     = phone.replace(/\D/g, '');
+  window.open(`https://wa.me/${p}?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function showLoading() {
+  document.getElementById('plist').innerHTML =
+    '<div class="loading"><div class="spinner"></div>טוען קטלוג...</div>';
+}
+function showError(msg) {
+  document.getElementById('org-name').textContent = 'שגיאה';
+  document.getElementById('plist').innerHTML =
+    `<div class="err"><div class="ei">⚠️</div>${msg}</div>`;
+}
+let toastT;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('on'), 1800);
+}
+
+init();
+</script>
+</body>
+</html>
