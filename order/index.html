@@ -375,6 +375,62 @@ button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 }
 .remove-btn:hover{color:var(--danger);background:oklch(96% 0.025 25)}
 
+/* Cart "you may also want these" suggestions — favourites (suggested qty) not yet in the cart. */
+.cart-suggest{margin:22px 14px 6px;border-top:1px dashed var(--line-strong);padding-top:16px}
+.cart-suggest-head{
+  display:flex;align-items:center;gap:8px;padding:0 4px 10px;
+  font-size:13.5px;font-weight:700;color:var(--amber-ink);
+}
+.cart-suggest-head::before{
+  content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);flex-shrink:0;
+}
+.cart-suggest-group-title{
+  padding:10px 4px 6px;
+  font-size:11px;font-weight:700;color:var(--ink-3);
+  letter-spacing:.08em;text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;
+}
+.cart-suggest-group-title::after{content:"";flex:1;height:1px;background:var(--line)}
+.suggest-row{
+  background:var(--amber-soft);
+  margin:0 0 6px;
+  border:1px solid oklch(90% 0.040 75);
+  border-radius:var(--r);
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 12px;
+}
+.suggest-info{flex:1;min-width:0}
+.suggest-name{font-size:13.5px;font-weight:500;color:var(--ink)}
+.suggest-meta{font-size:10.5px;color:var(--amber-ink);margin-top:2px;font-weight:600}
+.suggest-add{
+  flex-shrink:0;
+  background:var(--surface);color:var(--amber-ink);
+  border:1px solid oklch(85% 0.055 75);
+  border-radius:999px;
+  font-size:12.5px;font-weight:700;
+  padding:7px 14px;cursor:pointer;font-family:inherit;
+  transition:transform .1s, background .15s;
+}
+.suggest-add:active{transform:scale(.95);background:var(--amber-soft)}
+
+/* Edit-deadline banner in the cart — the order's "editable until <cutoff>" notice; red once passed. */
+.edit-deadline{
+  margin:12px 14px 0;
+  padding:10px 12px;
+  background:var(--amber-soft);
+  border:1px solid oklch(88% 0.045 75);
+  border-radius:var(--r);
+  font-size:12.5px;font-weight:600;color:var(--amber-ink);
+  display:flex;align-items:center;gap:8px;line-height:1.35;
+}
+.edit-deadline::before{ content:"⏳"; font-size:14px; flex-shrink:0; }
+.edit-deadline.expired{
+  background:oklch(96% 0.03 25);
+  border-color:oklch(85% 0.08 25);
+  color:var(--danger);
+}
+.edit-deadline.expired::before{ content:"🔒"; }
+
 .empty-cart{
   text-align:center;padding:80px 24px;color:var(--ink-3);
 }
@@ -583,6 +639,7 @@ button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 </div>
 
 <div id="unmatched-box" class="unmatched-box hidden"></div>
+<div id="allvariants-box" class="unmatched-box hidden"></div>
 
 <div id="catalog-view">
   <div id="mkt-tabs" class="mkt-tabs"></div>
@@ -598,6 +655,7 @@ button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
     <span class="cart-title">העגלה שלי</span>
     <span class="cart-summary" id="cart-summary"></span>
   </div>
+  <div id="edit-deadline" class="edit-deadline hidden"></div>
   <div id="cart-items"></div>
   <div class="cart-bottom" id="cart-bottom">
     <button class="cart-reset-btn" onclick="clearCart()">אפס סל</button>
@@ -654,9 +712,14 @@ let activeTab = null;
 let activeCat = null;
 let activeView = 'catalog';
 let unmatchedItems = [];
+// "מכל סוג" / "מסוג" items → each rendered as a checkbox multi-select (mirrors the chat Flow).
+let allVariantsItems = [];
 // Clarification picks (raw customer text → chosen sku) sent with the order so the backend learns
 // them as contact aliases, so next time the same wording auto-matches.
 let resolvedAliases = [];
+// Edit deadline (unix seconds) for an order being edited — null for new orders. The page shows it
+// and blocks a submit that slips past it (the server re-checks isOrderEditable authoritatively too).
+let editUntilEpoch = null;
 
 async function init() {
   showLoading();
@@ -676,6 +739,8 @@ async function init() {
   }
 
   unmatchedItems = [...(catalog.unmatchedItems || [])];
+  allVariantsItems = [...(catalog.allVariantsItems || [])];
+  editUntilEpoch = catalog.editUntilEpoch || null;
 
   // Favourites tab: show items with the highest suggested quantity first.
   if (Array.isArray(catalog.favorites)) {
@@ -689,7 +754,7 @@ async function init() {
   const hasFavorites = catalog.favorites && catalog.favorites.length > 0;
   const hasSession = catalog.existingOrder !== null;
 
-  const hasClarifications = unmatchedItems.length > 0;
+  const hasClarifications = unmatchedItems.length > 0 || allVariantsItems.length > 0;
   const editMarket = (hasSession && catalog.existingOrder.length > 0)
     ? catalog.existingOrder[0].market_type_id
     : null;
@@ -708,15 +773,20 @@ async function init() {
   document.title = 'הזמנה — ' + catalog.org.name;
 
   renderUnmatched();
+  renderAllVariants();
   renderTabs();
   renderContent();
   updateFooter();
 
-  // Editing an existing order (token carries a session id) → open straight to the cart so the
-  // customer immediately sees the already-ordered items to review/change.
-  if (catalog.sessionId && catalog.existingOrder && catalog.existingOrder.length > 0) {
+  // Editing/changing an order (a confirmed session via the token, OR pre-filled in-progress
+  // items) → open straight to the cart so the customer sees the current order to review/change.
+  // If items still need clarifying, stay on the catalog so those can be resolved first.
+  if (catalog.existingOrder && catalog.existingOrder.length > 0 && unmatchedItems.length === 0 && allVariantsItems.length === 0) {
     switchView('cart');
   }
+
+  // Re-evaluate the edit deadline periodically so the cart reflects it lapsing while the page is open.
+  if (editUntilEpoch) setInterval(applyEditDeadlineState, 30000);
 }
 
 function findSku(code) {
@@ -957,7 +1027,7 @@ function switchView(view) {
     box.classList.toggle('hidden', view !== 'catalog');
   }
 
-  if (view === 'cart') renderCart();
+  if (view === 'cart') { renderCart(); applyEditDeadlineState(); }
   if (view === 'catalog') renderContent();
   window.scrollTo(0, 0);
 }
@@ -976,7 +1046,7 @@ function renderCart() {
     return;
   }
 
-  document.getElementById('cart-send-btn').disabled = false;
+  document.getElementById('cart-send-btn').disabled = isEditExpired();
   const units = items.reduce((a, [_, q]) => a + q, 0);
   summary.textContent = items.length + ' פריטים · ' + units + ' יחידות';
 
@@ -1018,6 +1088,83 @@ function renderCart() {
 
     list.appendChild(section);
   });
+
+  // While editing/changing an order, offer the customer's usual extras (favourites with a
+  // suggested quantity, not already in the cart) right here in the cart, grouped by market type.
+  if (catalog.existingOrder !== null) renderCartSuggestions(list);
+}
+
+// "You may want to order these too" — the contact's favourites (suggested qty > 0) that aren't
+// already in the cart, grouped by market type, each one-tap addable at its suggested quantity.
+function renderCartSuggestions(container) {
+  const inCart = new Set(Object.keys(qty).filter(c => qty[c] > 0));
+  const sugg = (catalog.favorites || []).filter(f => f.suggested_qty > 0 && !inCart.has(f.sku_code));
+  if (!sugg.length) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'cart-suggest';
+  wrap.innerHTML = '<div class="cart-suggest-head">אולי תרצה להזמין גם את המוצרים האלה</div>';
+
+  const grouped = {};
+  sugg.forEach(f => {
+    const mt = catalog.marketTypes.find(m => String(m.id) === String(f.market_type_id));
+    const key = mt?.name || 'אחר';
+    (grouped[key] = grouped[key] || []).push(f);
+  });
+
+  Object.entries(grouped).forEach(([mtName, favs]) => {
+    const gt = document.createElement('div');
+    gt.className = 'cart-suggest-group-title';
+    gt.textContent = mtName;
+    wrap.appendChild(gt);
+
+    favs.forEach(f => {
+      const safeCode = f.sku_code.replace(/'/g, "\\'");
+      const row = document.createElement('div');
+      row.className = 'suggest-row';
+      row.innerHTML =
+        '<div class="suggest-info">' +
+          '<div class="suggest-name">' + escapeHtml(f.name) + '</div>' +
+          '<div class="suggest-meta">מוצע ' + f.suggested_qty + '</div>' +
+        '</div>' +
+        '<button class="suggest-add" onclick="addSuggested(\'' + safeCode + '\',' + f.suggested_qty + ')">+ הוסף</button>';
+      wrap.appendChild(row);
+    });
+  });
+
+  container.appendChild(wrap);
+}
+
+// Add a suggested favourite at its suggested quantity, then re-render the cart (it moves into the
+// order and out of the suggestions list).
+function addSuggested(code, q) {
+  qty[code] = q;
+  updateFooter();
+  renderCart();
+  toast(findSku(code).name + ' × ' + q);
+}
+
+function isEditExpired() {
+  return editUntilEpoch != null && (Date.now() / 1000) > editUntilEpoch;
+}
+
+// Show/refresh the edit-deadline banner in the cart; once the deadline lapses, flip it to the closed
+// state and disable sending. The server re-checks isOrderEditable on submit regardless — this is the
+// friendly heads-up so the customer isn't rejected only after typing.
+function applyEditDeadlineState() {
+  const banner = document.getElementById('edit-deadline');
+  if (!banner) return;
+  if (!editUntilEpoch) { banner.classList.add('hidden'); return; }
+  const expired = isEditExpired();
+  banner.classList.remove('hidden');
+  banner.classList.toggle('expired', expired);
+  banner.textContent = expired
+    ? 'חלון העריכה נסגר — כבר לא ניתן לשנות את ההזמנה'
+    : (catalog.editUntilLabel || '');
+  if (expired) {
+    const sendBtn = document.getElementById('cart-send-btn');
+    if (sendBtn) sendBtn.disabled = true;
+  }
 }
 
 function removeFromCart(code) {
@@ -1040,6 +1187,7 @@ let pendingRequestId = null;
 async function sendOrder() {
   const entries = Object.entries(qty).filter(([_, q]) => q > 0);
   if (entries.length === 0) return;
+  if (isEditExpired()) { showError('לא ניתן לערוך את ההזמנה יותר — חלון העריכה נסגר'); return; }
   const items = entries.map(([sku_code, quantity]) => ({ sku_code, quantity }));
 
   const btn = document.getElementById('cart-send-btn');
@@ -1060,7 +1208,14 @@ async function sendOrder() {
       body: JSON.stringify({ items, clientRequestId: pendingRequestId, aliases: resolvedAliases })
     });
     if (r.status === 401) { hidePosting(); showError('הקישור פג תוקף — בקש קישור חדש'); return; }
-    if (!r.ok) { hidePosting(); alert('שגיאה בשליחת ההזמנה, נסה שוב'); if (btn) btn.disabled = false; return; }
+    if (!r.ok) {
+      let errCode = ''; try { errCode = (await r.json()).error; } catch (e) {}
+      hidePosting();
+      // Edit window closed server-side (cutoff passed) — non-retryable, so show the blocking screen
+      // rather than the "try again" alert.
+      if (errCode === 'edit_window_closed') { showError('לא ניתן לערוך את ההזמנה יותר — חלון העריכה נסגר'); return; }
+      alert('שגיאה בשליחת ההזמנה, נסה שוב'); if (btn) btn.disabled = false; return;
+    }
   } catch (e) {
     console.error(e);
     hidePosting();
@@ -1165,6 +1320,85 @@ function pickSuggestion(unmatchedIdx, sug) {
   updateFooter();
   closeUnmatchedModal();
   toast(sug.name + ' נוסף לסל');
+}
+
+// ── "מכל סוג" checkbox multi-select (parity with the chat WhatsApp Flow) ──
+function renderAllVariants() {
+  const box = document.getElementById('allvariants-box');
+  if (!allVariantsItems || allVariantsItems.length === 0) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.innerHTML =
+    '<div class="unmatched-header">' +
+      '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01" stroke-linecap="round"></path></svg>' +
+      'בחירת סוגים · ' + allVariantsItems.length +
+    '</div>';
+  allVariantsItems.forEach(function(item, idx) {
+    const row = document.createElement('div');
+    row.className = 'unmatched-row';
+    const text = document.createElement('span');
+    text.className = 'unmatched-text';
+    text.textContent = item.keyword + ' — מכל סוג';
+    row.appendChild(text);
+    const btn = document.createElement('button');
+    btn.className = 'unmatched-find-btn';
+    btn.textContent = 'בחר סוגים';
+    btn.onclick = function() { openAllVariantsModal(idx); };
+    row.appendChild(btn);
+    box.appendChild(row);
+  });
+}
+
+function openAllVariantsModal(idx) {
+  const item = allVariantsItems[idx];
+  const modal = document.getElementById('unmatched-modal');
+  document.getElementById('modal-title').textContent =
+    'בחר סוגים עבור "' + item.keyword + '" · ' + (item.quantity || 1) + ' יח\' לכל בחירה';
+  const list = document.getElementById('suggestions-list');
+  list.innerHTML = '';
+  if (!item.variants || item.variants.length === 0) {
+    list.innerHTML = '<div class="no-suggestions">לא נמצאו סוגים מתאימים</div>';
+    modal.classList.remove('hidden');
+    return;
+  }
+  item.variants.forEach(function(v) {
+    const row = document.createElement('label');
+    row.className = 'suggestion-row';
+    row.style.cursor = 'pointer';
+    const mkt = marketName(v.market_type_id);
+    row.innerHTML =
+      '<input type="checkbox" class="av-check" data-sku="' + escapeHtml(v.sku_code) + '" ' +
+        'style="width:20px;height:20px;flex:none;accent-color:#2563eb">' +
+      '<div class="suggestion-text">' +
+        '<div class="suggestion-name">' + escapeHtml(v.name) + '</div>' +
+        '<div class="suggestion-meta">' + escapeHtml(v.sku_code) + (mkt ? ' · ' + escapeHtml(mkt) : '') + '</div>' +
+      '</div>';
+    list.appendChild(row);
+  });
+  const confirm = document.createElement('button');
+  confirm.className = 'unmatched-find-btn';
+  confirm.style.cssText = 'width:100%;margin-top:14px;padding:14px;font-size:15px';
+  confirm.textContent = 'הוסף לסל';
+  confirm.onclick = function() { confirmAllVariants(idx); };
+  list.appendChild(confirm);
+  modal.classList.remove('hidden');
+}
+
+function confirmAllVariants(idx) {
+  const item = allVariantsItems[idx];
+  const checks = document.querySelectorAll('#suggestions-list .av-check:checked');
+  if (checks.length === 0) { toast('לא נבחרו סוגים'); return; }
+  const q = Number(item.quantity) || 1;
+  checks.forEach(function(c) {
+    const sku = c.getAttribute('data-sku');
+    qty[sku] = (qty[sku] || 0) + q;   // N units per selected product, like the chat Flow
+  });
+  const n = checks.length;
+  allVariantsItems.splice(idx, 1);
+  renderAllVariants();
+  renderContent();
+  updateFooter();
+  closeUnmatchedModal();
+  toast(n + ' מוצרים נוספו לסל');
 }
 
 function updateFooter() {
