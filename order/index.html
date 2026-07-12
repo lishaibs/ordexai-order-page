@@ -137,6 +137,12 @@ button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   transition:background .15s;
 }
 .unmatched-find-btn:active{background:var(--amber-soft)}
+.modal-skip{
+  margin-top:10px;text-align:center;padding:13px;
+  color:var(--ink-3);font-size:13px;font-weight:600;cursor:pointer;
+  border-top:1px solid var(--line);
+}
+.modal-skip:active{color:var(--ink)}
 
 .mkt-tabs{
   background:var(--surface);
@@ -717,6 +723,7 @@ let allVariantsItems = [];
 // Clarification picks (raw customer text → chosen sku) sent with the order so the backend learns
 // them as contact aliases, so next time the same wording auto-matches.
 let resolvedAliases = [];
+let droppedUnmatched = [];   // raw texts the customer marked "not in the list" — sent to the server to record as unmatched
 // Edit deadline (unix seconds) for an order being edited — null for new orders. The page shows it
 // and blocks a submit that slips past it (the server re-checks isOrderEditable authoritatively too).
 let editUntilEpoch = null;
@@ -1205,7 +1212,7 @@ async function sendOrder() {
     const r = await fetch(API + '/web-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ items, clientRequestId: pendingRequestId, aliases: resolvedAliases })
+      body: JSON.stringify({ items, clientRequestId: pendingRequestId, aliases: resolvedAliases, droppedUnmatched })
     });
     if (r.status === 401) { hidePosting(); showError('הקישור פג תוקף — בקש קישור חדש'); return; }
     if (!r.ok) {
@@ -1273,6 +1280,20 @@ function renderUnmatched() {
   });
 }
 
+// Customer says "my item isn't in the list" → drop it from the order. Recorded server-side as
+// unmatched (like the chat "דלג"), so the distributor still sees what was asked for.
+function dropUnmatched(idx) {
+  const item = unmatchedItems[idx];
+  if (!item) return;
+  if (item.text) droppedUnmatched.push(item.text);
+  unmatchedItems.splice(idx, 1);
+  renderUnmatched();
+  renderContent();
+  updateFooter();
+  closeUnmatchedModal();
+  toast('הפריט הוסר מההזמנה');
+}
+
 function openUnmatchedModal(idx) {
   const item = unmatchedItems[idx];
   const modal = document.getElementById('unmatched-modal');
@@ -1303,6 +1324,13 @@ function openUnmatchedModal(idx) {
     });
   }
 
+  // Always offer an explicit escape: "my product isn't in the list" → drop it from the order.
+  const skip = document.createElement('div');
+  skip.className = 'modal-skip';
+  skip.textContent = 'המוצר שלי לא ברשימה — הסר מההזמנה';
+  skip.onclick = function() { dropUnmatched(idx); };
+  list.appendChild(skip);
+
   modal.classList.remove('hidden');
 }
 
@@ -1311,9 +1339,11 @@ function closeUnmatchedModal() {
 }
 
 function pickSuggestion(unmatchedIdx, sug) {
-  const rawText = unmatchedItems[unmatchedIdx]?.text;
+  const item = unmatchedItems[unmatchedIdx];
+  const rawText = item?.text;
   qty[sug.sku_code] = (qty[sug.sku_code] || 0) + 1;
-  if (rawText) resolvedAliases.push({ raw_text: rawText, sku_code: sug.sku_code });
+  // Carry fat% so the learned alias is the fuller "בולגרית 24", matching the chat behavior.
+  if (rawText) resolvedAliases.push({ raw_text: rawText, sku_code: sug.sku_code, fat_pct: item?.fat_pct ?? null });
   unmatchedItems.splice(unmatchedIdx, 1);
   renderUnmatched();
   renderContent();
